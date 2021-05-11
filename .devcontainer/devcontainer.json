@@ -1,0 +1,6 @@
+{
+    "image": "gcc:latest",
+    "forwardPorts": [3000],
+    "extensions": ["dbaeumer.vscode-eslint"]
+  }
+  
