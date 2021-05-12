@@ -4,7 +4,6 @@
 #include <vector>
 #include <iostream>
 #include <limits>
-#include <coroutine>
 #include <tuple>
 #include <variant>
 #include <optional>
@@ -51,8 +50,23 @@ bool operator!=(const Mallocator <T>&, const Mallocator <U>&) { return false; }
 
 struct obs {
 	int num;
-	double x[3];
-	double sigmas[3];
+	double x;
+	double sigmas;
+
+	obs (int n, double xs, double sig) :
+	num(std::move(n)), x(std::move(xs)), sigmas(std::move(sig)) {
+		 std::cout << "I am being constructed.\n";
+	}
+	obs (obs & other):
+	num((other.num)), x((other.x)), sigmas((other.sigmas)) {
+		 std::cout << "I am copy constructed.\n";
+	}
+
+	obs (obs && other) :
+	num(std::move(other.num)), x(std::move(other.x)), sigmas(std::move(other.sigmas)) {
+		 std::cout << "I am move constructed.\n";
+	}
+	
 };
 
 struct track {
@@ -112,34 +126,13 @@ struct range_generator
 
 	iterator begin() { return{ first }; }
 	iterator end()   { return{ last  }; }
-	
 
-template <typename T>
-range_generator<T> range(T first, T last) { return { first, last }; }
+};
 
 template<class T>
-struct generator {
-	struct promise_type {
-		std::variant<T const *, std::optional<std::exception_ptr>> value;
-	};
-	using handle_type = std::coroutine_handle<promise_type>;
-};
-
-
-#include <chrono>
-
-struct timer {
-	timer() { start = std::chrono::high_resolution_clock::now(); };
-	~timer() 
-	{
-		auto stop = std::chrono::high_resolution_clock::now(); 
-		auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start); 
-		std::cout << "Duration " << duration.count() << " microseconds\n";
-	}
-
-	std::chrono::_V2::system_clock::time_point start;
-	
-};
+range_generator<T> range (T first, T last) {
+	return { first , last };
+}
 
 auto main() -> int
 {
@@ -147,7 +140,7 @@ auto main() -> int
 
 	tracker tracker_;
 	track t1 ;
-	obs o1; 
+	obs o1(1,2,3); 
 	for( int i : range(0, 10)) {
 	
 		t1.num = i;
@@ -161,7 +154,7 @@ auto main() -> int
 	auto process   = [&counter](auto&& track, auto&&obs) { counter++; printf("t-%d,o-%d\n", track.num, obs.num); };
 	
 
-	{ timer t;
+	{ 
 		for (auto & t : tracker_.track_list_ ){
 			for (auto & o : tracker_.obs_list_ ){
 				if( !condition(t, o))
@@ -172,7 +165,7 @@ auto main() -> int
 	}
 	
 	
-	{ timer t;
+	{
 		for (auto & t : tracker_.track_list_ ){
 			for (auto & o : tracker_.obs_list_ ){
 				if( !(t.num  > 4 && o.num  > 6 ))
