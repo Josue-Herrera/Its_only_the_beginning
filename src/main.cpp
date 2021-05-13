@@ -129,6 +129,40 @@ struct range_generator
 
 };
 
+template <typename T>
+struct index_iterator
+{
+	T last;
+	struct iterator {
+		T value;
+
+		using iterator_category = std::input_iterator_tag;
+		using value_type = T;
+
+		iterator& operator++() { ++value; return *this; }
+		iterator operator++(int) = delete;
+
+		bool operator==(iterator const& other) const { return value == other.value; }
+		bool operator!=(iterator const& other) const { return !(*this == other); }
+
+		T const& operator*()  const { return value; }
+		T const* operator->() const { return std::addressof(value); }
+	};
+
+	iterator begin() { return{ 0 }; }
+	iterator end() { return{ last }; }
+
+};
+
+template<std::integral T >
+index_iterator<T> index (T last) {
+	return { last };
+}
+template< class T>
+index_iterator<size_t> index(std::vector<T> & cont) {
+	return { cont.size() };
+}
+
 template<class T>
 range_generator<T> range (T first, T last) {
 	return { first , last };
@@ -136,15 +170,14 @@ range_generator<T> range (T first, T last) {
 
 auto main() -> int
 {
-	using namespace std::chrono;
-
+	std::vector a{ 0,1,2,3,4,5,6,7,8,9 };
 	tracker tracker_;
 	track t1 ;
 	obs o1(1,2,3); 
-	for( int i : range(0, 10)) {
+	for(auto i : index(a)) {
 	
-		t1.num = i;
-		o1.num = 10 - i;
+		t1.num = (int) i;
+		o1.num = (int) (10 - i);
 		tracker_.track_list_.emplace_back(t1);
 		tracker_.obs_list_.emplace_back(o1);
 	}
