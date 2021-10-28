@@ -1,225 +1,94 @@
-#include <memory>
-#include <cstddef>
 #include <algorithm>
-#include <vector>
-#include <iostream>
-#include <limits>
-#include <tuple>
-#include <variant>
+#include <numeric>
+#include <memory>
 #include <optional>
-#include <typeinfo>
+#include <cmath>
+#include <vector>
+#include <tuple>
+#include <iostream>
 
-template <class T>
-struct Mallocator
-{
-  typedef T value_type;
- 
-  Mallocator () = default;
-  template <class U> constexpr Mallocator (const Mallocator <U>&) noexcept {}
- 
-   //[[nodiscard]]
-   T* allocate(std::size_t n) {
-    if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
-      throw std::bad_array_new_length();
- 
-    if (auto p = static_cast<T*>(std::malloc(n*sizeof(T)))) {
-      report(p, n);
-      return p;
-    }
- 
-    throw std::bad_alloc();
-  }
- 
-  void deallocate(T* p, std::size_t n) noexcept {
-    report(p, n, false);
-    std::free(p);
-  }
- 
-private:
-  void report(T* p, std::size_t n, bool alloc = true) const {
-    std::cout << (alloc ? "Alloc: " : "Dealloc: ") << sizeof(T)*n
-	  << " Type : " <<  typeid(T).name() << " size : " << sizeof(T) << " n times : " << n
-      << " bytes at " << std::hex << std::showbase
-      << reinterpret_cast<void*>(p) << std::dec << '\n';
-  }
-};
-template <class T, class U>
-bool operator==(const Mallocator <T>&, const Mallocator <U>&) { return true; }
-template <class T, class U>
-bool operator!=(const Mallocator <T>&, const Mallocator <U>&) { return false; }
+#include <Eigen/Dense>
 
-struct obs {
-	int num;
-	double x;
-	double sigmas;
+#include "..\include\tester.h"
+//#include "..\cc.h"
+#include "..\tester.h"
+#include "..\iterators.h"
+#include "..\kdtree.h"
+#include "..\zmq_process.h"
+#include "..\DataSets.h"
+namespace clustering {
+	namespace optics {
+		
+		template<class T>
+		struct optics {
 
-	obs (int n, double xs, double sig) :
-	num(std::move(n)), x(std::move(xs)), sigmas(std::move(sig)) {
-		 std::cout << "I am being constructed.\n";
+		};
+		
 	}
-	obs (obs & other):
-	num((other.num)), x((other.x)), sigmas((other.sigmas)) {
-		 std::cout << "I am copy constructed.\n";
-	}
-
-	obs (obs && other) :
-	num(std::move(other.num)), x(std::move(other.x)), sigmas(std::move(other.sigmas)) {
-		 std::cout << "I am move constructed.\n";
-	}
-	
-};
-
-struct track {
-	int num;
-	double x[6];
-	double p[6][6];
-};
-
-struct tracker {
-	using Track_List = std::vector< track, Mallocator<track> >;
-	using Obs_List 	 = std::vector< obs  , Mallocator<obs>   >;
-	
-	tracker() { 
-		track_list_.reserve(10000);
-		obs_list_.reserve(10000);
-	}
-	~tracker(){};
-
-	Obs_List obs_list_;
-	Track_List track_list_;
-};
-
-template<class Container, class Predicate>
-void remove_elements_if(Container & container, Predicate predicate) {
-	container.erase(
-		std::remove_if(std::begin(container), std::end(container), predicate ),
-		std::end(container)
-	);
 }
 
-template<class Container, class Predicate>
-void sort(Container & container, Predicate predicate) {
-	std::sort(std::begin(container), std::end(container), predicate);
-}
+using test_t = typename double;
+
+struct test {
+	test_t field;
+	double member_fun(double, double);
+};
+
+template <typename, typename = void>
+struct has_field : std::false_type {};
 
 template <typename T>
-struct range_generator
-{
-	T first;
-	T last;
+struct has_field< T, std::void_t< // here is where you would add functional requirements  super strict, your struct must have a certain value;
+	decltype(T::field),
+	decltype(&T::member_fun)
+	>> 
+: std::true_type{};
 
-	struct iterator { 
-		T value;
+template<typename T>
+constexpr bool has_field_v = has_field<T>::value;
 
-		using iterator_category = std::input_iterator_tag;
-		using value_type = T;
+template<typename T>
+using requires_field = typename std::enable_if_t<has_field_v<T>, T>;
 
-		iterator& operator++(){	++value; return *this;}
-		iterator operator++(int) = delete;
-
-		bool operator==(iterator const& other) const { return value == other.value; }
-		bool operator!=(iterator const& other) const { return !(*this == other); }
-
-		T const& operator*()  const { return value; }
-		T const* operator->() const { return std::addressof(value); }
-	};
-
-	iterator begin() { return{ first }; }
-	iterator end()   { return{ last  }; }
-
-};
-
-template <typename T>
-struct index_iterator
-{
-	T last;
-	struct iterator {
-		T value;
-
-		using iterator_category = std::input_iterator_tag;
-		using value_type = T;
-
-		iterator& operator++() { ++value; return *this; }
-		iterator operator++(int) = delete;
-
-		bool operator==(iterator const& other) const { return value == other.value; }
-		bool operator!=(iterator const& other) const { return !(*this == other); }
-
-		T const& operator*()  const { return value; }
-		T const* operator->() const { return std::addressof(value); }
-	};
-
-	iterator begin() { return{ 0 }; }
-	iterator end() { return{ last }; }
-
-};
-
-template<std::integral T >
-index_iterator<T> index (T last) {
-	return { last };
-}
-template< class T>
-index_iterator<size_t> index(std::vector<T> & cont) {
-	return { cont.size() };
+template <class T, typename requires_field <T> * = nullptr >
+auto fun(T & value) {
+	return value.field * value.field;
 }
 
-template<class T>
-range_generator<T> range (T first, T last) {
-	return { first , last };
+#define EIGEN 
+#include "..\cc_mega.h"
+#include "..\cc.h"
+void old() {
+	auto lla{ cct::make_vector(-36., 75., 0.) };
+	auto ecef{ cct::lla2ecef(lla) };
+	auto lla2{ cct::ecef2lla(ecef) };
+
+
+	using std::begin;
+	using std::end;
+	using iterator_algo::size_of;
+	using data_set::cities::operator==;
+
+	auto num_cites = size_of(data_set::cities::california);
+	std::vector cities(data_set::cities::california, data_set::cities::california + num_cites);
+	std::vector cities2 = cities;
+	
+	kdtree<data_set::cities::city, 2> tree(cities);
+	auto search_val = tree.search(cities[30]);
+
+	std::vector< data_set::cities::city> empty;
+	kdtree<data_set::cities::city, 2> tree2(empty);
+
+	auto value2 = tree2.insert(cities[0]);
+	auto s = tree2.insert(cities[30]);
+
+	s->data_;
 }
+
 
 auto main() -> int
 {
-	std::vector a{ 0,1,2,3,4,5,6,7,8,9 };
-	tracker tracker_;
-	track t1 ;
-	obs o1(1,2,3); 
-	for(auto i : index(a)) {
-	
-		t1.num = (int) i;
-		o1.num = (int) (10 - i);
-		tracker_.track_list_.emplace_back(t1);
-		tracker_.obs_list_.emplace_back(o1);
-	}
-
-	int counter = 0;
- 	auto condition = [](auto&& track, auto&&obs){ return (track.num  > 4 && obs.num  > 6 ) ; };
-	auto process   = [&counter](auto&& track, auto&&obs) { counter++; printf("t-%d,o-%d\n", track.num, obs.num); };
-	
-
-	{ 
-		for (auto & t : tracker_.track_list_ ){
-			for (auto & o : tracker_.obs_list_ ){
-				if( !condition(t, o))
-					continue;
-				process(t,o);
-				}
-		}
-	}
-	
-	
-	{
-		for (auto & t : tracker_.track_list_ ){
-			for (auto & o : tracker_.obs_list_ ){
-				if( !(t.num  > 4 && o.num  > 6 ))
-					continue;
-				counter++; printf("t-%d,o-%d\n", t.num, o.num);
-			}
-		}
-	}
-
-
-
-
-	printf("count : %d\n", counter);
-
-	auto threshold = [](track & item ){ return item.num > 4 ; };
-	remove_elements_if(tracker_.track_list_, threshold);
-
-	
-	for ( auto & track : tracker_.track_list_) 
-		printf("%d\n" , track.num);
-	
-	
+	simple_sub();
 	return 0;
+
 }
