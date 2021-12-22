@@ -55,13 +55,8 @@ auto fun(T & value) {
 	return value.field * value.field;
 }
 
-#define EIGEN 
-#include "..\cc_mega.h"
-#include "..\cc.h"
+
 void old() {
-	auto lla{ cct::make_vector(-36., 75., 0.) };
-	auto ecef{ cct::lla2ecef(lla) };
-	auto lla2{ cct::ecef2lla(ecef) };
 
 
 	using std::begin;
@@ -86,9 +81,18 @@ void old() {
 }
 
 
+//#include "../json_addon.h"
+
 auto main() -> int
 {
-	simple_sub();
+	//double start = 0, end = 10, percent_dist_from_start_to_end = .5;
+	//double test = std::lerp(start, end, percent_dist_from_start_to_end);
+	//Eigen::Vector3d test2{ 1,1,1 };
+	//Eigen::Vector3d s{ Eigen::Vector3d::Constant(1) };
+	//std::cout << test2 + (s * test) ;
+
+	//json_test();
+	practice::test_case();
 	return 0;
 
 }

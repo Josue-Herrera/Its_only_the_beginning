@@ -159,19 +159,10 @@ void simple_sub() {
 	ctx.close();
 }
 
+#include <../boost_1_75_0/boost/pfr.hpp>
 
 namespace zmqp {
-    template<class T, class = void>
-    struct has_size : std::false_type {};
- 
-    template<class T>
-    struct has_size <T, 
-        std::void_t< decltype(std::declval<std::size_t&>() = std::declval<T const&>().size())>>
-        : std::true_type { };
-
-    template<class T>
-    constexpr bool has_size_v = has_size<T>::value;
-
+  
     template <typename T>
     struct index_iterator
     {
@@ -192,15 +183,11 @@ namespace zmqp {
     };
 
     template<std::integral T >
-    index_iterator<T> index(T last) {
+    index_iterator<T> enumarate(T last) {
         return { last };
     }
-    template<typename T, typename std::enable_if_t<has_size_v<T>,T>>
-    index_iterator<size_t> index(T & cont) {
-        return { cont.size() };
-    }
-
-    template<class T = int>
+ 
+    template<class T  = std::uint64_t>
     using filters_t   = std::vector<std::vector<T>>;
     using endpoints_t = std::vector<std::string>;
     using sockets_t   = std::vector<zmq::socket_t>;
@@ -233,20 +220,60 @@ namespace zmqp {
         }
     }
 
+    struct header_t {
+        int id;
+    };
+
+    template<class body_t>
+    struct zmessage_t {
+        header_t header;
+        body_t body;
+    };
+
+    template<typename T, typename _ = void>
+    struct is_container : std::false_type {};
+
+    template<typename... Ts>
+    struct is_container_helper {};
+
+    template<typename T>
+    struct is_container<
+        T,
+        std::conditional_t<
+        false,
+        is_container_helper<
+        typename T::value_type,
+        typename T::size_type,
+        typename T::allocator_type,
+        typename T::iterator,
+        typename T::const_iterator,
+        decltype(std::declval<T>().size()),
+        decltype(std::declval<T>().begin()),
+        decltype(std::declval<T>().end()),
+        decltype(std::declval<T>().cbegin()),
+        decltype(std::declval<T>().cend())
+        >,
+        void
+        >
+    > : public std::true_type{};
+
+    template<class T>
+    constexpr bool is_container_v = is_container<T>;
+
     class zprocess_t {
-        using key_t = int;
+
         using st = zmq::socket_type;
-        using io_events_t = std::vector<zmq::poller_event<key_t>>;
+        using io_events_t = std::vector<zmq::poller_event<>>;
         
         sockets_t pubs;
         sockets_t subs;
         sockets_t reqs;
         sockets_t reps;
         zmq::context_t  context;
-        zmq::poller_t<key_t> poller;
+        zmq::poller_t<> poller;
         io_events_t input_events;
         zmq::multipart_t messages;
-        std::size_t poll_hits;
+        std::size_t poll_keys_count;
         
         void setup(setup_t const& e) noexcept {
             bind<st::pub>(pubs, e.pubs, context, poller);
@@ -254,21 +281,63 @@ namespace zmqp {
             connect<st::sub>(subs, e.subs, context, poller);
             connect<st::req>(reqs, e.reqs, context, poller);
             input_events.resize(poller.size());
+            poll_keys_count = input_events.size();
         }
 
         zprocess_t(setup_t const& values) :
-            context{ values.context_n }, poll_hits{ 0 }, messages{} {
+            context{ values.context_n }, poll_keys_count{ 0 }, messages{} {
             setup(values);
         }
         
+        auto poll(std::chrono::milliseconds timeout) { return poller.wait_all(input_events, timeout); } 
+        auto poll_keys()                             { return enumarate(poll_keys_count); }
+        
+
         template<class T>
-        auto to_buffer(T & data) {
-            
+        void to_zmq(zmq::multipart_t & messages, T const& value) {
+            if constexpr (std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>) {
+                messages.addtyp(value);
+            }
+            else if constexpr (is_container_v<T>) {
+                messages.add(zmq::message_t{ value.begin(), value.end() });
+            } 
         }
 
         template<class T>
-        auto from_buffer() {
+        void from_zmq(zmq::multipart_t& messages, T & value) {
+            if constexpr (std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>) {
+                value = messages.poptyp(value);
+            }
+            else if constexpr (is_container_v<T>) {
+                using value_t = T::value_type;
+                auto msg = messages.pop();
+                std::span data { msg.data<value_t>(), msg.size() / sizeof(value_t) };
+                value.reserve(data.size());
+                std::copy(data.begin(), data.end(), std::back_inserter(value));
+            }
+        }
 
+        auto peek_header() {
+            return messages.peektyp<header_t>(std::size_t{ 0 });
+        }
+       
+        auto get_header() {
+            return messages.poptyp<header_t>();
+        }
+
+        template<class T, class To_ZMQ_Func>
+        auto to_buffer(T const & data, To_ZMQ_Func to_zmq) {
+            auto&& data_to_send = to_zmq(data);
+            boost::pfr::for_each_field(data_to_send, [&](auto const & field) {
+                to_zmq(messages, field);
+            });
+        }
+
+        template<class T>
+        void from_buffer(T & data) {
+            boost::pfr::for_each_field(data, [&](auto& field) {
+                from_zmq(messages, field);
+            });
         }
     };
   
