@@ -14,6 +14,7 @@
 #include "..\tester.h"
 #include "..\iterators.h"
 #include "..\kdtree.h"
+#include "..\devs.h"
 #include "..\zmq_process.h"
 #include "..\DataSets.h"
 namespace clustering {
@@ -81,18 +82,21 @@ void old() {
 }
 
 
-//#include "../json_addon.h"
-
+#include "../json_addon.h"
+#include <string_view>
 auto main() -> int
 {
+	using namespace std::literals::string_view_literals;
+
 	//double start = 0, end = 10, percent_dist_from_start_to_end = .5;
 	//double test = std::lerp(start, end, percent_dist_from_start_to_end);
 	//Eigen::Vector3d test2{ 1,1,1 };
 	//Eigen::Vector3d s{ Eigen::Vector3d::Constant(1) };
 	//std::cout << test2 + (s * test) ;
 
-	//json_test();
-	practice::test_case();
+	json_test();
+	//practice::test_case();
+	dsm::DataSets::create("D:\\workspace\\datasets\\"sv);
 	return 0;
 
 }

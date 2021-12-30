@@ -2,29 +2,26 @@
 #include <vector>
 #include <algorithm>
 #include <variant>
-
-#define EIGEN 
-#include "cc_mega.h"
-
+#include <Eigen/Dense>
 /// <summary>
 /// discrete event virtual simualator : DEVS 
 /// Sequential event processing :
 /// 1. 
 /// </summary>
 /// 
-
-
-
+template <class... Fs> struct Overload : Fs... { using Fs::operator()...; };
+template <class... Fs> Overload(Fs...)->Overload<Fs...>;
 
 namespace devs{
-	
+	template <class... Fs> struct Overload : Fs... { using Fs::operator()...; };
+	template <class... Fs> Overload(Fs...)->Overload<Fs...>;
 	template <class T, class U> struct variant_concat;
 	template <class... T, class U> struct variant_concat<std::variant<T...>, U> { using type = std::variant<T..., U>; };
 	template <class T, class U> using variant_concat_t = typename variant_concat<T, U>::type;
 
 	// you can either have an function of position based on time for each agent and
 	using frequency_t    = std::uint64_t;
-	using seconds_t      = double;
+	using seconds_t      = std::uint64_t;
 	using position_enu_t = Eigen::Vector3d;
 	using velocity_enu_t = Eigen::Vector3d;
 
@@ -38,9 +35,8 @@ namespace devs{
 	using obs_t = std::variant < rae_vec_t, ae_vec_t >;
 	
 	using origin_t        = Eigen::Vector3d;
-	using time_samples_t  = std::vector<double>;
-	using agents_t        = std::vector<agent_t>;
-	using simple_agents_t = std::vector<agent>;
+	using time_samples_t  = std::vector<std::uint64_t>;
+
 
 	struct agent_t {
 		positions_t positions;
@@ -52,7 +48,10 @@ namespace devs{
 		velocity_enu_t vel;
 		bool obs;
 	};
-	
+
+	using agents_t = std::vector<agent_t>;
+	using simple_agents_t = std::vector<agent>;
+
 	struct clock_t {
 		const std::uint64_t start_time;
 		const std::uint64_t end_time;

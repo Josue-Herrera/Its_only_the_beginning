@@ -35,7 +35,6 @@ ZMQ_CPP11
 #include <zmq_addon.hpp>
 #include <iostream>
 #include <span>
-#include <charconv>
 
 
 
@@ -186,9 +185,7 @@ namespace zmqp {
     index_iterator<T> enumarate(T last) {
         return { last };
     }
- 
-    template<class T  = std::uint64_t>
-    using filters_t   = std::vector<std::vector<T>>;
+
     using endpoints_t = std::vector<std::string>;
     using sockets_t   = std::vector<zmq::socket_t>;
 
@@ -197,7 +194,6 @@ namespace zmqp {
         endpoints_t subs;
         endpoints_t reqs;
         endpoints_t reps;
-        filters_t<>  filters;
         int context_n;
     };
 
@@ -258,7 +254,7 @@ namespace zmqp {
     > : public std::true_type{};
 
     template<class T>
-    constexpr bool is_container_v = is_container<T>;
+    constexpr bool is_container_v = is_container<T>::value;
 
     class zprocess_t {
 
