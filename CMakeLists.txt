@@ -10,10 +10,11 @@ FILE(GLOB includes include/*.h)
 add_executable(${TARGET_NAME} ${src} ${includes})
 target_include_directories(${TARGET_NAME} PUBLIC ${includes} )
 
-set(ZeroMQ_DIR ${CMAKE_SOURCE_DIR}/lib/zmq/CMake)
+set(ZeroMQ_DIR ${CMAKE_SOURCE_DIR}/lib/libzmq/cmake)
 set(cppzmq_DIR ${CMAKE_SOURCE_DIR}/lib/cppzmq/share/cmake/cppzmq)
 find_package(cppzmq)
 target_link_libraries(${TARGET_NAME} PUBLIC cppzmq-static)
+target_include_directories(${TARGET_NAME} PUBLIC ${cppzmq_INCLUDE_DIRS} )
 
 set(eigen ${CMAKE_SOURCE_DIR}/../../Libraries/eigen)
 target_include_directories(${TARGET_NAME} PUBLIC ${eigen} )

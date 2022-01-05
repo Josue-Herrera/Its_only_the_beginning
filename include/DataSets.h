@@ -4,6 +4,7 @@
 #define TOML_EXCEPTIONS 0
 
 #include <..\toml.hpp>
+#include <format>
 #include <chrono>
 #include <random>
 #include <filesystem>

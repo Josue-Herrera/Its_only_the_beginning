@@ -93,10 +93,10 @@ auto main() -> int
 	//Eigen::Vector3d test2{ 1,1,1 };
 	//Eigen::Vector3d s{ Eigen::Vector3d::Constant(1) };
 	//std::cout << test2 + (s * test) ;
-
-	json_test();
+	zmqp::publish_test();
+	//json_test();
 	//practice::test_case();
-	dsm::DataSets::create("D:\\workspace\\datasets\\"sv);
+	//dsm::DataSets::create("D:\\workspace\\datasets\\"sv);
 	return 0;
 
 }
