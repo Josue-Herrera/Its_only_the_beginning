@@ -38,6 +38,7 @@ ZMQ_CPP11
 #include <span>
 #include<chrono>
 #include <../boost_1_75_0/boost/pfr.hpp>
+
 namespace chrono = std::chrono;
 
 struct timer {
@@ -57,8 +58,6 @@ struct timer {
        std::cout << "duration : " << duration << " millieseconds " << " iterations : " << num;
     }
 };
-
-
 
 namespace zmqp {
 
@@ -193,21 +192,6 @@ namespace zmqp {
         }
     }
 
-    struct header_t {
-        int id;
-    };
-
-    template<class body_t>
-    struct zmessage_t {
-        header_t header;
-        body_t body;
-    };
-
-    template<class Body_t, class Fill_Header_F>
-    auto to_zmq_message(Body_t const& body, Fill_Header_F Func) {
-        return zmessage_t{ { Func() }, body };
-    }
-
     class zprocess_t {
 
         using st = zmq::socket_type;
@@ -238,16 +222,6 @@ namespace zmqp {
         inline auto poll(std::chrono::milliseconds timeout = std::chrono::milliseconds{ 1 })
              { return poller.wait_all(input_events, timeout); }
         inline auto poll_keys() { return enumarate(input_events.size()); }
-
-       
-
-        inline auto peek_header() {
-            return messages.peektyp<header_t>(std::size_t{ 0 });
-        }
-       
-        inline auto get_header() {
-            return messages.poptyp<header_t>();
-        }
 
         template<class T>
         inline void to_buffer(T const & data) {

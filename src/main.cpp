@@ -9,14 +9,13 @@
 
 #include <Eigen/Dense>
 
-#include "..\include\tester.h"
-//#include "..\cc.h"
-#include "..\tester.h"
+#include "..\ca_cities_location.h"
 #include "..\iterators.h"
 #include "..\kdtree.h"
 #include "..\devs.h"
 #include "..\zmq_process.h"
-#include "..\DataSets.h"
+
+
 namespace clustering {
 	namespace optics {
 		
