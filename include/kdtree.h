@@ -85,7 +85,7 @@ public:
     };
 
 
-    using kdtree_container = std::list<kdtree_node>;
+    using kdtree_container = std::vector<kdtree_node>;
     kdtree_node * root_;
     kdtree_container nodes_; // only used if is constructed with vector;
 
@@ -190,7 +190,7 @@ public:
         auto node_comparison = [&](const auto & node1, const auto & node2) {
             n++;
                                     return node1.data_[depth] < node2.data_[depth];};
-        nodes_.sort(node_comparison);
+       // nodes_.sort(node_comparison);
         //std::nth_element(i + begin, i + n, i + end, node_comparison );
         depth = (depth + 1) % max_dimension;
        // nodes_[n].left_  = construct(begin, n, depth);

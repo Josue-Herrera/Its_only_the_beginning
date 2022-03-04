@@ -34,6 +34,7 @@ ZMQ_CPP11
 
 #include <thread>
 #include <zmq_addon.hpp>
+
 #include <iostream>
 #include <span>
 #include<chrono>
@@ -293,5 +294,86 @@ namespace zmqp {
        }
        
    }
+    
+   template<int row_size>
+   using vec = Eigen::Matrix<double, row_size, 1>;
 
+   template<typename... Ts>
+   struct listy {};
+
+   template<typename T>
+   using get_t = typename T::type;
+
+   template<typename... Ts>
+   struct tagged_vector {
+       using type = listy<Ts...>;
+       static const constexpr auto size = sizeof...(Ts);
+       vec<size> data;
+   };
+
+   
+ 
+
+    template<typename...Ts>
+    constexpr auto pack(Ts&&... t) {
+        return std::tuple { std::forward<Ts>(t)... };
+    }
+
+    template<class x_t, class y_t>
+    auto tester_1(Eigen::MatrixBase<x_t> const& x, Eigen::MatrixBase<y_t> const& y) {
+        return x_t{ x };
+    }
+    template<class x_t, class y_t, class z_t>
+    auto tester_2(Eigen::MatrixBase<x_t> const& x, Eigen::MatrixBase<y_t> const& y, Eigen::MatrixBase<z_t> const& z) {
+        return x_t{ x };
+    }
+
+    #include <variant>
+
+    struct tag_1{};
+    struct tag_2{};
+    struct tag_3{};
+    struct tag_4{};
+
+    using list_1 = tagged_vector<tag_1, tag_2>;
+    using list_2 = tagged_vector<tag_3, tag_4>;
+    using list_3 = tagged_vector<tag_2, tag_3, tag_4>;
+
+    using var = std::variant<list_1, list_2, list_3>;
+    using vector_var = std::vector<var>;
+    
+  
+
+    void lambda_pack_test() {
+        using std::begin, std::end;
+
+        int value = 9;
+
+        using vec_int         = std::vector<int>;
+        using vec_int_iter    = typename vec_int::iterator;
+        using assignment_pair = std::tuple <vec_int_iter, vec_int_iter>;
+        using ass_container   = std::vector<assignment_pair>;
+
+
+       vec_int list1  = { 5,6,7,8,0,2,4 };
+       vec_int list2 = { 1,2,3,4,9,23,44 };
+       vec_int temp;
+
+        auto is_even = [](auto const& value) {
+            bool test = value % 2 == 0;
+            return test;
+        };
+
+        auto is_less_than = [](auto const & threshold){
+            return [&](auto const& value) {
+                bool test = value < threshold;
+                return test;
+            };
+        };
+
+       
+               
+        
+
+    }
 }

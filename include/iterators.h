@@ -3,52 +3,25 @@
 #include <utility>
 #include <variant>
 #include <iostream>
-#include <any>
+#include <type_traits>
+#include <Eigen/Core>
 
 #define FWD(...) \
-std::forward<decltype<__VA_ARGS__)>(__VA_ARGS__)
+std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 
 #define LIFT(X) [](auto && ... args)    \
 	noexcept(noexcept(X(FWD(args)...))) \
 	      -> decltype(X(FWD(args)...))  \
 	         { return X(FWD(args)...); }
 
-template<typename interface>
-class implementation
-{
-public:
-	template<typename concrete_type>
-	implementation(concrete_type&& object)
-		: storage{ std::forward<concrete_type>(object) }
-		, getter{ [] (std::any& storage)->interface&
-					{
-						return std::any_cast<concrete_type&>(storage);
-					}
-	}
-	{}
-
-	interface* operator-> () { return &getter(storage); }
-
-private:
-	std::any storage;
-	interface& (*getter)(std::any&);
-};
-
-template <typename t>
-using stub = implementation<t>;
-
 namespace iterator_algo {
 	template<class Container, class Predicate>
-	void remove_elements_if(Container& container, Predicate predicate) {
+	void erase_elements_if(Container & container, Predicate predicate) {
+		using std::begin, std::end;
 		container.erase(
-			std::remove_if(std::begin(container), std::end(container), predicate),
+			std::remove_if(begin(container), end(container), predicate),
 			std::end(container)
 		);
-	}
-
-	template<class Container, class Predicate>
-	void sort(Container& container, Predicate predicate) {
-		std::sort(std::begin(container), std::end(container), predicate);
 	}
 
 	template <typename T>
@@ -117,15 +90,14 @@ namespace iterator_algo {
 		return sizeof(arr) / sizeof(arr[0]);
 	}
 	
-
-
 	template<class T>
 	range_generator<T> range(T first, T last) {
 		return { first , last };
 	}
 }
-#include <iostream>
-#include <type_traits>
+
+
+
 namespace practice {
 	// values_equal<a, b, T>::value is true if and only if a == b.
 		
@@ -142,166 +114,113 @@ namespace practice {
 		int value;
 	};
 
-	size_t test_overload(size_t d, tag1) {
-		std::puts("Tag1 OverLoad\n");
-		return d;
-	}
-	size_t test_overload(size_t d, tag2) {
-		std::puts("Tag2 OverLoad\n");
-		return d;
-	}
-	size_t test_overload(size_t d, tag3) {
-		std::puts("Tag3 OverLoad\n");
-		return d;
-	}
-	size_t test_overload(size_t d, tag4) {
-		std::puts("Tag4 OverLoad\n");
-		return d;
-	}
-	template<class T, class U>
-	double wow(T &&t, U && u) {
-		return (double)test_overload(std::forward<U>(u), std::forward<T>(t));
-	}
 
-	template<class T>
-	Eigen::Vector3d create_column_vector_3x1(T) {
-		return type_tag_fun(T{});
-	}
-	template<class... Args>
-	auto create_matrix_from_variadic_typelist() {
-		using matrix_type = Eigen::Matrix<double, 3 * sizeof...(Args), sizeof...(Args)>;
-		matrix_type temp;
-		temp << (create_column_vector_3x1(Args{}), ...);
-		return temp;
-	}
+	template<class Iter1, class Iter2, class Iter3, class BinaryPredicate>
+	inline void linear_assignment_if(Iter1 begin1, Iter1 end1, Iter2 begin2, Iter2 end2, Iter3 out, BinaryPredicate predicate) {
+		using std::next;
 		
-#include <iostream>
 
-#include <Eigen/Core>
-#include <utility>
-
-	namespace eigen_util {
-		using usize = decltype(sizeof(0));
-
-		namespace detail {
-			struct Empty {};
-			using EmptyArr = Empty[];
-
-			template <typename Seq, typename...>
-			struct CoalesceImpl;
-
-			template <usize I, typename T>
-			using IgnoreIndex = T;
-
-			template <usize... Is, typename T>
-			struct CoalesceImpl<std::index_sequence<Is...>, IgnoreIndex<Is, T>...> {
-				using Type = T;
-			};
-
-			template <typename T>
-			inline constexpr auto add_array_impl_dyn(T const* arr, usize N) noexcept -> T {
-				T acc = 0;
-				for (usize i = 0; i < N; ++i) {
-					if (arr[i] == T(Eigen::Dynamic))
-						return arr[i];
-			
-					acc += arr[i];
+		for (; begin1 != end1; begin1 = next(begin1)) {
+			*out = { begin1, end2 };
+			for (Iter2 cur2 = begin2; cur2 != end2; cur2 = next(cur2)) {
+				if (predicate(*begin1, *begin2)) {
+					*out = { begin1, begin2 };
+					break;
 				}
-				return acc;
 			}
-			template <typename T, usize N>
-			inline constexpr auto add_array_impl(T const (&arr)[N]) noexcept -> usize {
-				return detail::add_array_impl_dyn(static_cast<T const*>(arr), N);
-			}
-
-			template <typename T>
-			inline constexpr auto common_array_impl_dyn(T const* arr, usize N) noexcept -> T {
-				T dim = T(Eigen::Dynamic);
-				for (usize i = 0; i < N; ++i) {
-					if (dim == T(Eigen::Dynamic))
-						dim = arr[i];
-					else if ((dim != arr[i]) && !(arr[i] == T(Eigen::Dynamic)))
-						std::terminate();
-				}
-				return dim;
-			}
-			template <typename T, usize N>
-			inline constexpr auto common_array_impl(T const (&arr)[N]) noexcept -> usize {
-				return detail::common_array_impl_dyn(static_cast<T const*>(arr), N);
-			}
-
-		} // namespace detail
-
-		template <usize... Ns>
-		struct AddDims
-			: std::integral_constant < usize, detail::add_array_impl({ Ns... }) > {};
-
-		template <usize... Ns>
-		struct CommonDim
-			: std::integral_constant < usize, detail::common_array_impl({ Ns... }) > {};
-
-		template <typename... Ts>
-		using Coalesce = typename detail::
-			CoalesceImpl<std::make_index_sequence<sizeof...(Ts)>, Ts...>::Type;
-
-		template <
-			typename... Mats,
-			typename ConcatMat = Eigen::Matrix<                          //
-			Coalesce<typename Mats::Scalar...>,                      //
-			int(AddDims<usize(Mats::RowsAtCompileTime)...>::value),  //
-			int(CommonDim<usize(Mats::ColsAtCompileTime)...>::value) //
-			>>
-			auto append_vectors_together(Mats const&... mats) -> ConcatMat {
-			ConcatMat concat{
-					Eigen::Index(detail::add_array_impl({usize(mats.rows())...})),
-					Eigen::Index(detail::common_array_impl({usize(mats.cols())...})),
-			};
-
-			Eigen::Index idx = 0;
-
-			(void)detail::EmptyArr{
-					(void(concat.middleRows(idx, mats.rows()) = mats),
-					void(idx += mats.rows()),
-			detail::Empty{})...,};
-
-			return concat;
+			out = next(out);
 		}
-	} // namespace eigen_util
-
-
-	template <template<class...> class Tag_list, class... Args>
-	void test_tag(Tag_list<Args...>&& test) {
-
-		auto hx = [](auto&& test) {
-			std::array<double, sizeof...(Args)> d = { wow(Args{}, sizeof...(Args))... };
-			for (auto e : d) {
-				std::cout << e << std::endl;
-			}
-			return d;
-		}(test);
-	
 	}
 
-		//sum = test_overload(test.value,Args) + ;
+
+	template<class Iter1, class Iter2, class OIter1, class OIter2, class BinaryPredicate>
+	inline void linear_assignment_if(Iter1 begin1, Iter1 end1, Iter2 begin2, Iter2 end2,
+							  OIter1 outPass, OIter2 outFail, BinaryPredicate predicate) {
+		using std::next;
+
+		for (; begin1 != end1; begin1 = next(begin1)) {
+			for (Iter2 cur2 = begin2; cur2 != end2; cur2 = next(cur2)) {
+				if (predicate(*begin1, *begin2)) {
+					*outPass = { begin1, begin2 };
+					outPass = next(outPass);
+				} else {
+					*outFail = { begin1 };
+					outFail = next(outFail);
+				}
+			}
+		}
+	}
+
+	template<class Iter1, class Iter2, class PassAssignment, class FailAssignment, class BinaryPredicate>
+	inline void on_linear_assignment_if(Iter1 begin1, Iter1 end1, Iter2 begin2, Iter2 end2,
+		PassAssignment pass, FailAssignment fail, BinaryPredicate predicate) {
+		using std::next;
+
+		for (; begin1 != end1; begin1 = next(begin1)) {
+			for (Iter2 cur2 = begin2; cur2 != end2; cur2 = next(cur2)) {
+				if (predicate(*begin1, *begin2)) {
+					pass(*begin1, *begin2);
+				}
+				else {
+					fail(*begin1);
+				}
+			}
+		}
+	}
+
+	template<class... Predicates>
+	inline auto chain(Predicates... predicate) {
+		return [=](auto const &... value) {
+			return (predicate(value...) && ...);
+		};
+	}
+
 
 	void test_case() {
-		using tags = typename tag_list<tag1, tag2>;
-	
-		test_tag(tags{});
+		using std::begin, std::end;
+		using vec_int         = std::vector<int>;
+		using vec_int_iter    = typename vec_int::iterator;
+		using assignment_pair = std::tuple <vec_int_iter, vec_int_iter>;
+		using ass_container   = std::vector<assignment_pair>;
 
-		Eigen::Vector3d a;
-		Eigen::Vector4d b;
-		Eigen::MatrixXd c(6, 1);
 
-		a.setRandom();
-		b.setRandom();
-		c.setRandom();
+		vec_int list1 = { 5,6,7,8,0,2,4 };
+		vec_int list2 = { 1,2,3,4,9,23,44 };
+		ass_container temp(list1.size());
 
-		auto concat = eigen_util::append_vectors_together(a, b, c);
-		std::cout << a.transpose() << '\n';
-		std::cout << b.transpose() << '\n';
-		std::cout << c.transpose() << '\n';
+		auto is_even = [](auto const& value) {
+			bool test = value % 2 == 0;
+			return test;
+		};
 
-		std::cout << concat.transpose() << '\n';
+		auto is_less_than = [](auto const& threshold) {
+			return [&](auto const& value) {
+				bool test = value < threshold;
+				return test;
+			};
+		};
+
+		auto l2_new_end = std::partition(begin(list2), end(list2), chain(is_even, is_less_than(20)));
+		
+		linear_assignment_if(begin(list1), end(list1), begin(list2), l2_new_end, begin(temp), std::equal_to());
+
+		auto pass_assignment = [](auto& one, auto& two) {
+				
+		};
+
+		// This algo should be called on_assignment. passAssignmentFunc & Failed Assigment Func
+		std::for_each(begin(temp), end(temp), [&](auto& tuple_iter) {
+			if (auto [l1_iter, l2_iter] = tuple_iter; l2_iter != l2_new_end) {
+				
+			}
+			else {
+
+			}
+		});
+
+
+		
+		
 	}
+
 }
