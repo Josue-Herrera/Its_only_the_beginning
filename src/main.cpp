@@ -17,6 +17,34 @@
 #include "..\zmq_process.h"
 
 
+#include<chrono>
+namespace chrono = std::chrono;
+
+template<bool add_new_line>
+struct timer {
+	using clock = chrono::system_clock;
+	using milliseconds = chrono::milliseconds;
+
+	char const* const name;
+	clock::time_point start;
+
+	timer(char const* const n) :
+		name{ n },
+		start{ clock::now() }
+	{};
+
+	~timer() {
+		const auto duration = chrono::duration_cast<milliseconds>(clock::now() - start).count();
+		if constexpr (add_new_line)
+			printf("[duration] %lldms [name] %s\n",duration, name);
+		else 
+			printf("[duration] %lldms [name] %s", duration, name);
+		
+	}
+};
+
+using timer_nl = timer<true>;
+using timer_no = timer<false>;
 
 namespace clustering {
 	namespace optics {
@@ -114,11 +142,8 @@ class notification_queue {
 
 public: 
 
-	//
-	// Attempt to pop something but if the qu is empty or if its busy it will return false.
-	// 
-	// 
 
+	// Attempt to pop something but if the qu is empty or if its busy it will return false.
 	bool try_pop(function_capture_t& func) {
 		lock_t lock{ mutex, std::try_to_lock };
 		if (!lock || queue.empty()) return false;
@@ -128,8 +153,6 @@ public:
 	}
 
 	// try_push 
-	// 
-	//
 	template<class Function>
 	bool try_push(Function && func) {
 		{ 
@@ -139,7 +162,6 @@ public:
 		}
 		ready.notify_one();
 		return true;
-
 	}
 
 	void done() {
@@ -176,45 +198,60 @@ class task_system {
 
 	const unsigned			count    { std::thread::hardware_concurrency() };
 	thread_container_t		threads;
-	notifications_t		    notifications;
+	notifications_t		    notifications{count};
 	atomic_index_t			index{ 0 };
+	unsigned                k_bound {48};
 
 	void run(unsigned i) {
+		std::string str{ std::to_string(i) + " worker thread" };
+		std::string str2{};
+		str2.reserve(1024);
+		unsigned task_count{ 0 };
+		
+		{timer_no t(str.c_str());
 		while (true) {
+
 			function_capture_t func;
+
 			for (unsigned n = 0; n != count; ++n) {
-				if ( notifications[(i + n) & count].try_pop(func) ) 
-					break;
+				if (notifications[(i + n) % count].try_pop(func)) break;
 			}
 
-			if (!func && !notifications[i].pop(func))
-				break;
+			if (!func && !notifications[i].pop(func)) break;
+
+			printf("[%s]  ", str.c_str());
+
+			++task_count;
 			func();
+
+
+			str2.clear();
 		}
+		} /* sliver of time between t desctructor is calls and the print gets called */
+		printf(" [task count] : %u\n", task_count);
 	}
 
 public:
-	task_system() {
-		for (unsigned n = 0; n != count; ++n) {
+
+	explicit task_system (unsigned k) : k_bound{ k } {
+		for (unsigned n = 0; n != count; ++n) 
 			threads.emplace_back([&, n] { run(n); });
-		}
 	}
 
 	~task_system() {
-		for (auto& e : notifications) e.done();
-		for (auto& e : threads) e.join();
+		for (auto& ns : notifications) ns.done();
+		for (auto& ts : threads)       ts.join();
 	}
 	
-	constexpr static const int k_bound = 48;
+
 
 	template<class Function>
 	void async_(Function&& work) {
 		auto i = index++;
-		for (unsigned n = 0; != count * k_bound; ++n) {
-			if(notifications[(i + n) % count].try_push(std::forward<Function>(work)) 
-				return;
+		for (unsigned n = 0; n != count * k_bound; ++n) {
+			if(notifications[(i + n) % count].try_push(std::forward<Function>(work))) return;
 		}
-		notifications[i % count].try_push(std::forward<Function>(work));
+		notifications[i % count].push(std::forward<Function>(work));
 	}
 
 
@@ -224,142 +261,33 @@ public:
 
 auto main() -> int
 {
-	//using namespace std::literals::string_view_literals;
 
-	//double start = 0, end = 10, percent_dist_from_start_to_end = .5;
-	//double test = std::lerp(start, end, percent_dist_from_start_to_end);
-	//Eigen::Vector3d test2{ 1,1,1 };
-	//Eigen::Vector3d s{ Eigen::Vector3d::Constant(1) };
-	//std::cout << test2 + (s * test) ;
-	//zmqp::publish_test();
-	//zmqp::lambda_pack_test();
-	//json_test();
-	//practice::test_case();
-	//dsm::DataSets::create("D:\\workspace\\datasets\\"sv);
+	using namespace std::literals::chrono_literals;
 
+	auto total      = 410;
+	auto sleep_time = 3ms;
+	auto k_bound    = 50u;
+	{ timer_nl t("single threaded");
+		for (int i = 0; i < total; ++i) {
+			printf("[task #%d]\n", i);
+			std::this_thread::sleep_for(sleep_time);
+		}
+	}
 	
-	size_t k = 4;
-	std::vector<int> arr = { 1, 12, -5, -6, 50, 3 };
-
-	auto BAD_findMaxAvg = [](auto& arr, auto k) {
-		using nlf = std::numeric_limits<float>;
-		auto max = -nlf::infinity();
-
-		for (size_t i = 0; i < arr.size(); ++i) {
-
-			int sum = 0;
-			for (size_t j = 0; j < k; ++j) {
-
-				if (!(i + (k - size_t{ 1 }) > arr.size() - size_t{ 1 })) {
-					sum += arr[i + j];
-				} else {
-					i = arr.size();
-					j = k;
-				}
-			}
-
-			if (sum != 0) {
-				max = std::max(max, float(sum)/float(k));
+	{
+		task_system ts{ k_bound };
+		{ timer_nl t2("async function");
+			for (int i = 0; i < total; ++i) {
+				ts.async_([=, &ts]{
+					printf("[task #%d]\n", i);
+					std::this_thread::sleep_for(sleep_time);
+				});
+				
 			}
 		}
-
-		if (max == -nlf::infinity()) {
-			return 0.0f;
-		}
-
-		return max;
-	};
-
-	auto returns = BAD_findMaxAvg(arr, k);
-	std::cout << "BAD_findMaxAvg : " << returns << std::endl;
-
-	auto Better_findMaxAvg = [](auto& nums, auto k){
-		using nlf  = std::numeric_limits<float>;
-		
-		auto window_sum   = 0; 
-		auto start        = 0;
-		auto max          = -nlf::infinity();
-
-		for (size_t window_end {0}; window_end < nums.size(); window_end++) {
-			
-			window_sum += nums[window_end];
-			
-			if (window_end - start + size_t{ 1 } == k) {
-				max = std::max(max, float(window_sum) / float(k));
-				window_sum -= nums[start];
-				start++;
-			}
-			
-		}
-		
-		return max;
-	};
-
-	auto Better_findMaxAvg2 = [](auto& nums, auto k) {\
-
-		auto window_sum = 0;
-		auto window_start      = std::begin(nums);
-		auto max        = -std::numeric_limits<float>::infinity();
-
-		// Main Part if the window 
-		for (auto window_end{ std::begin(nums) }; window_end != std::end(nums); window_end++) {
-			window_sum += *window_end;
-		//
-
-			// *** Condition/Continuatuon IS VARIABLE for each window *** ///
-			// Parameterized around : window_end, window_start, max, k.
-			if (window_end - window_start + size_t{ 1 } == k)
-			{
-				max = std::max(max, float(window_sum) / float(k));
-				window_sum -= *window_start;
-				window_start++;
-			}
-
-		}
-
-		return max;
-	};
-
-	// Sliding Window Bus Algo :
-	// Conditional Predicate Assignment to enter window ? 
-	// like a toll troll. before i can compare you must pass a test. 
-	//		
-	// 
-	// 
-	// Fixed Length      : max sum subarray of size k
-	// Dynnamic Variant  : smallest sum >= to some value S
-	// Dyn Var w/ Aux DS : [using a hashmap or something]
-	//					   longest substring w/ no more than k distinct character
-	//					   - string permutations
-	//
-	// Key Commonalities!
-	// - everything grouped sequentailly
-	// 
-	// fixate the window around the comm
-	// - longest/smallest/contains
-	// - max/min 
-	// 
-	// 
-	// 
-	// 
-	// 
-	// Recurrence Relations
-	//	Homogenous
-	//  Non-hhomogenous
-	// 
-	// 
-	// Amdahl's law : 
-	// 
-	//
-
-
-
-
-
-
-	auto returns2 = Better_findMaxAvg2(arr, k);
-	std::cout << "Better_findMaxAvg : " << returns2 << std::endl;
-
+	}
+	
+	
 	return 0;
 
 

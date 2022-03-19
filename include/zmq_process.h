@@ -37,28 +37,9 @@ ZMQ_CPP11
 
 #include <iostream>
 #include <span>
-#include<chrono>
 #include <../boost_1_75_0/boost/pfr.hpp>
 
-namespace chrono = std::chrono;
 
-struct timer {
-    using clock = chrono::system_clock;
-    using milliseconds = chrono::milliseconds;
-
-    int num;
-    clock::time_point start;
-
-    timer(int n) :
-        num{ n },
-        start{ clock::now() }
-    {};
-   
-    ~timer() {
-       const auto duration = chrono::duration_cast<milliseconds>(clock::now()-start).count();
-       std::cout << "duration : " << duration << " millieseconds " << " iterations : " << num;
-    }
-};
 
 namespace zmqp {
 
